@@ -1,0 +1,56 @@
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+<style>
+body {
+  background: #20262E;
+  padding: 20px;
+  font-family: Helvetica;
+}
+#app {
+  background: #fff;
+  border-radius: 4px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+.col {
+  display: inline-block;
+}
+</style>
+<body>
+<div id="app">
+  <div class="col">
+    <textarea v-model="input"></textarea>
+  </div>
+  <div class="col">
+    <button v-on:click="convert">convert</button>
+    <div>{{results}}</div>
+  </div>
+  <script>
+  new Vue({
+  el: "#app",
+  data: {
+    input: "input here",
+    results: "results show here",
+    patterns: [
+      {pattern: "(a)sd(f)", output: "$1**$2"},
+      {pattern: "(move)\\s*(\\S+)\\s+(\\S+)", output: "$3=$2"},
+      {pattern: "(movel)\\s*(\\S+)\\s+(\\S+)", output: "$3=$2 + substr($3,0,0)"},
+      {pattern: "(z-add)\\s*(\\S+)\\s+(\\S+)", output: "$3=$2"},
+    ]
+  },
+  methods: {
+    convert: function(a){
+      let converted = this.input;
+      this.patterns.forEach(function(item){
+        let rex = new RegExp(item.pattern, 'gi');
+        console.log(rex);
+      	converted = converted.replace(rex, item.output)
+      });
+      this.results = converted;
+    }
+  }
+})
+  </script>
+</body>
+</html>
