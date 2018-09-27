@@ -38,6 +38,105 @@ textarea {
     </div>
   </div>
   <script>
+class RpgLine {
+  constructor(rawText) {
+    this.cmd = rawText.substr(35,5).trim(); // command
+    this.f1 = this.vars(rawText.substr(25,10).trim()); // factor 1
+    this.f2 = this.vars(rawText.substr(40,10).trim()); // factor 2
+    this.result = this.reserved(rawText.substr(50,8).trim()); // result
+    this.i1 = rawText.substr(58,9).trim(); // indicator 1
+    this.i2 = rawText.substr(67,20).trim(); // indicator 2
+  }
+  get js() {
+  	switch (this.cmd.toLowerCase()) {
+      case 'klist':
+      case 'kfld':
+      case 'setll':{
+      	return;
+      }
+    	case "movel":
+    	case "move": {
+      	return this.result + ' = ' + this.f2 + ';';
+      }
+    	case "z-add": {
+      	return this.result + ' = ' + this.f2 + ';';
+      }
+    	case "add": {
+      	return this.result + ' += ' + this.f2 + ';';
+      }
+    	case "z-sub": {
+      	return this.result + ' = -(' + this.f2 + ');';
+      }
+    	case "sub": {
+        if(this.f1) return this.result + ' = ' + this.f1 + ' - ' + this.f2 + ';';
+        else return this.result + ' -= ' + this.f2 + ';';
+      }
+    	case "doueq": {
+      	return 'while (' + this.f1 + ' !== ' + this.f2;
+      }
+    	case "doweq": {
+      	return 'while (' + this.f1 + ' === ' + this.f2;
+      }
+    	case "ifeq": {
+      	return 'if (' + this.f1 + ' === ' + this.f2;
+      }
+    	case "ifgt": {
+      	return 'if (' + this.f1 + ' > ' + this.f2;
+      }
+    	case "ifge": {
+      	return 'if (' + this.f1 + ' >= ' + this.f2;
+      }
+    	case "iflt": {
+      	return 'if (' + this.f1 + ' < ' + this.f2;
+      }
+    	case "ifle": {
+      	return 'if (' + this.f1 + ' <= ' + this.f2;
+      }
+    	case "andeq": {
+      	return '&& ' + this.f1 + ' === ' + this.f2;
+      }
+    	case "andgt": {
+      	return '&& ' + this.f1 + ' > ' + this.f2;
+      }
+    	case "andlt": {
+      	return '&& ' + this.f1 + ' < ' + this.f2;
+      }
+    	case "oreq": {
+      	return '|| ' + this.f1 + ' === ' + this.f2;
+      }
+    	case "orgt": {
+      	return '|| ' + this.f1 + ' > ' + this.f2;
+      }
+    	case "orlt": {
+      	return '|| ' + this.f1 + ' < ' + this.f2;
+      }
+    	case "exsr": {
+      	return this.f2 + '();';
+      }
+    	case "begsr": {
+      	return 'function ' + this.f1 + '() {';
+      }
+      case "endsr": {
+        return '} /* end function */';
+      }
+      case "enddo": {
+        return '} /* end while */';
+      }
+      case "endif": {
+        return '} /* end if */';
+      }
+      default: {
+        return (this.result?this.result + " = ":"") + this.cmd + "('"+this.f1+"','"+this.f2+"','"+this.i1+"','"+this.i2+"');";
+      }
+    }
+  }
+  vars(str) {
+    return str.replace('*ZEROS','0').replace('*BLANKS',"''").replace('*IN','_index_').replace('*ON','_on_').replace('*OFF','_off_');
+  }
+  reserved(str) {
+    return str.replace('#','_').replace('*','_');
+  }
+}
 new Vue({
   el: "#app",
   data: {
@@ -62,11 +161,11 @@ new Vue({
   },
   computed: {
   	output: function(){
-      if(this.input.includes('100      F')){
+      //if(this.input.includes('100      F')){
       	return this.parserpg(this.input);
-      } else {
-      	return this.rpg2js(this.input);
-      }
+      //} else {
+      //	return this.rpg2js(this.input);
+      //}
     }
   },
   methods: {
@@ -82,17 +181,25 @@ new Vue({
             if(line.substr(16,1)!=="-" && line.substr(15,10).trim().length>0){ output.push('/* '+line.substr(15,20).trim()+' */');
             }
           } else {
-            let js = self.rpg2js(line.substr(25,40));
-            if(js.startsWith('if')) terminator = ') {';
-            else if(terminator && !js.startsWith('&&') && !js.startsWith('||')){
-            	js = terminator + js;
-              terminator = '';
+            //let js = self.rpg2js(line.substr(25,40));
+            let js = new RpgLine(line).js;
+            if(js){
+              if(js.startsWith('if') || js.startsWith('while')) {
+              	if(terminator) {
+                  js = terminator + js;
+                }
+              	terminator = ') {';
+              }
+              else if(terminator && !js.startsWith('&&') && !js.startsWith('||')){
+                js = terminator + js;
+                terminator = '';
+              }
+              output.push(js);            
             }
-            output.push(js);
           }
         }
       });
-      return output.join("\n");
+      return output.join('');//.join("\n").replace(/\s/g,'');
     },
     rpg2js: function(text){
       this.patterns.forEach(function(item){
@@ -102,7 +209,7 @@ new Vue({
       return text.trim();
     },
   }
-})
+});
   </script>
 </body>
 </html>
