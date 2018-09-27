@@ -31,7 +31,7 @@ textarea {
 <body>
   <div id="app">
     <div class="col">
-      <textarea placeholder="paste some code" v-model="input"></textarea>
+      <textarea placeholder="paste some IBM RPG code here" v-model="input"></textarea>
     </div>
     <div class="col">
       <textarea v-model="output"></textarea>
@@ -43,36 +43,64 @@ new Vue({
   data: {
     input: "",
     patterns: [
-      {pattern: "(a)sd(f)", output: "$1**$2"},
-      {pattern: "(movel)\\s*(\\S+)\\s+(\\S+)", output: "$3 = $2 + substr($3,0,0)"},
-      {pattern: "(move)\\s*(\\S+)\\s+(\\S+)", output: "$3 = $2"},
-      {pattern: "(z-add)\\s*(\\S+)\\s+(\\S+)", output: "$3 = $2"},
-      {pattern: "(add)\\s*(\\S+)\\s+(\\S+)", output: "$3 += $2"},
+      {pattern: "(movel)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2 + substr($3,$2.length(),$3.length()-$2.length());"},
+      {pattern: "(move)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2;"},
+      {pattern: "(z-add)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2;"},
+      {pattern: "(add)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 += $2;"},
+      {pattern: "(\\S+)\\s*(ifeq)\\s*(\\S+)", output: "if ($1 == $3"},
+      {pattern: "(\\S+)\\s*(ifgt)\\s*(\\S+)", output: "if ($1 < $3"},
+      {pattern: "(\\S+)\\s*(andeq)\\s*(\\S+)", output: "&& $1 == $3"},
+      {pattern: "(\\S+)\\s*(andlt)\\s*(\\S+)", output: "&& $1 < $3"},
+      {pattern: "(\\S+)\\s*(andgt)\\s*(\\S+)", output: "&& $1 > $3"},
+      {pattern: "(\\S+)\\s*(oreq)\\s*(\\S+)", output: "|| $1 == $3"},
+      {pattern: "(\\S+)\\s*(orlt)\\s*(\\S+)", output: "|| $1 < $3"},
+      {pattern: "(\\S+)\\s*(orgt)\\s*(\\S+)", output: "|| $1 > $3"},
+      {pattern: "(endif)", output: "}"},
       {pattern: "([*]blanks)", output: "\'\'"},
       {pattern: "([*]zeros)", output: "0"},
     ]
   },
   computed: {
   	output: function(){
-      let converted = this.input;
-      this.patterns.forEach(function(item){
-        let rex = new RegExp(item.pattern, 'gi');
-        console.log(rex);
-      	converted = converted.replace(rex, item.output)
-      });
-      return converted;
+      if(this.input.includes('100      F')){
+      	return this.parserpg(this.input);
+      } else {
+      	return this.rpg2js(this.input);
+      }
     }
   },
   methods: {
-    convert: function(a){
-      let converted = this.input;
+  	parserpg: function(input){
+      var self = this;
+      let output = [];
+      let terminator = '';
+      let lines = input.split('\n');
+      lines.forEach(function(line){
+      	if(line.substr(7,7).trim()==='C'){
+          let fields = [];
+          if(line.substr(14,1)==='*'){//comment
+            if(line.substr(16,1)!=="-" && line.substr(15,10).trim().length>0){ output.push('/* '+line.substr(15,20).trim()+' */');
+            }
+          } else {
+            let js = self.rpg2js(line.substr(25,40));
+            if(js.startsWith('if')) terminator = ') {';
+            else if(terminator && !js.startsWith('&&') && !js.startsWith('||')){
+            	js = terminator + js;
+              terminator = '';
+            }
+            output.push(js);
+          }
+        }
+      });
+      return output.join("\n");
+    },
+    rpg2js: function(text){
       this.patterns.forEach(function(item){
         let rex = new RegExp(item.pattern, 'gi');
-        console.log(rex);
-      	converted = converted.replace(rex, item.output)
+      	text = text.replace(rex, item.output)
       });
-      this.results = converted;
-    }
+      return text.trim();
+    },
   }
 })
   </script>
