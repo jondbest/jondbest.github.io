@@ -10,7 +10,6 @@ body {
   background: #fafafa;
   font-family: Helvetica;
 }
-
 #app {
   /*background: #fff;*/
   border-radius: .1rem;
@@ -31,18 +30,16 @@ textarea {
   width: 44%;
   padding: .9rem;
 }
-
 </style>
-  <body>
-    <div id="app">
-      <div class="col">
-        <textarea placeholder="paste some code" v-model="input"></textarea>
-      </div>
-      <div class="col">
-        <textarea v-model="output"></textarea>
-      </div>
+<body>
+  <div id="app">
+    <div class="col">
+      <textarea placeholder="paste some code" v-model="input"></textarea>
     </div>
-    
+    <div class="col">
+      <textarea v-model="output"></textarea>
+    </div>
+  </div>
   <script>
 new Vue({
   el: "#app",
