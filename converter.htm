@@ -7,13 +7,26 @@ html, body, #app {
 }
 body {
   background: #20262E;
+  color: #fafafa;
+  font-family: Open Sans,sans-serif;
   margin: 0;
+}
+a {
+  text-decoration: none;
+  color: #99f;
+}
+h6 {
+  margin: .5rem auto;
+}
+strong {
+  font-weight: 700;
 }
 #app {
   display: flex;
   transition: all 0.2s;
 }
 textarea {
+  font-size: .9rem;
   width: 92%;
   height: 92%;
   border: none;
@@ -21,55 +34,60 @@ textarea {
   box-shadow: .1rem .1rem .5rem rgba(0,0,0,.1);
   resize: none;
   padding: .25rem .5rem;
-  margin: auto;
+  margin: 0 auto;
+  display: flex;
 }
 .col {
   display: inline-flex;
+  flex-direction: column;
   width: 50%;
 }
 </style>
-<body>
-  <div id="app">
-    <div class="col">
-      <textarea placeholder="paste some IBM RPG code here" v-model="input"></textarea>
+  <body>
+    <div id="app">
+      <div class="col">
+        <h6>convert <strong>{{langIn}}</strong></h6>
+        <textarea placeholder="paste some code here" v-model="input"></textarea>
+      </div>
+      <div class="col">
+        <h6>to <strong>{{langOut}}</strong> <small><a href="#">...edit dictionary</a></small></h6>
+        <textarea v-model="output"></textarea>
+      </div>
     </div>
-    <div class="col">
-      <textarea v-model="output"></textarea>
-    </div>
-  </div>
   <script>
+var row = '';
 class RpgLine {
   constructor(rawText) {
     this.cmd = rawText.substr(35,5).trim(); // command
-    this.f1 = this.vars(rawText.substr(25,10).trim()); // factor 1
-    this.f2 = this.vars(rawText.substr(40,10).trim()); // factor 2
-    this.result = this.reserved(rawText.substr(50,8).trim()); // result
+    this.f1 = this.repl(rawText.substr(25,10).trim()); // factor 1
+    this.f2 = this.repl(rawText.substr(40,10).trim()); // factor 2
+    this.result = this.repl(rawText.substr(50,8).trim()); // result
     this.i1 = rawText.substr(58,9).trim(); // indicator 1
     this.i2 = rawText.substr(67,20).trim(); // indicator 2
+    this.id = rawText.substr(0,7).trim(); // indicator 2
   }
   get js() {
+    let endline = ';';// `; /* ${this.id} */`;
   	switch (this.cmd.toLowerCase()) {
       case 'klist':
       case 'kfld':
-      case 'setll':{
+      case 'setll': {
       	return;
       }
     	case "movel":
-    	case "move": {
-      	return this.result + ' = ' + this.f2 + ';';
-      }
+    	case "move":
     	case "z-add": {
-      	return this.result + ' = ' + this.f2 + ';';
+        return `${formatVar(this.result)} = ${formatVar(this.f2)}${endline}`;
       }
     	case "add": {
-      	return this.result + ' += ' + this.f2 + ';';
+        return `${formatVar(this.result)} += ${formatVar(this.f2)}${endline}`;
       }
     	case "z-sub": {
-      	return this.result + ' = -(' + this.f2 + ');';
+        return `${formatVar(this.result)} = -(${formatVar(this.f2)})${endline}`;
       }
     	case "sub": {
-        if(this.f1) return this.result + ' = ' + this.f1 + ' - ' + this.f2 + ';';
-        else return this.result + ' -= ' + this.f2 + ';';
+        if(this.f1) return this.result + ' = ' + this.f1 + ' - ' + this.f2 + '; /* #' + this.id + ' */';
+        return this.result + ' -= ' + this.f2 + '; /* #' + this.id + ' */';
       }
     	case "doueq": {
       	return 'while (' + this.f1 + ' !== ' + this.f2;
@@ -78,91 +96,113 @@ class RpgLine {
       	return 'while (' + this.f1 + ' === ' + this.f2;
       }
     	case "ifeq": {
-      	return 'if (' + this.f1 + ' === ' + this.f2;
+        return `if (${formatVar(this.f1)} === ${formatVar(this.f2)})`;
+      }
+    	case "ifne": {
+        return `if (${formatVar(this.f1)} !== ${formatVar(this.f2)})`;
       }
     	case "ifgt": {
-      	return 'if (' + this.f1 + ' > ' + this.f2;
+        return `if (${formatVar(this.f1)} > ${formatVar(this.f2)})`;
       }
     	case "ifge": {
-      	return 'if (' + this.f1 + ' >= ' + this.f2;
+        return `if (${formatVar(this.f1)} >= ${formatVar(this.f2)})`;
       }
     	case "iflt": {
-      	return 'if (' + this.f1 + ' < ' + this.f2;
+        return `if (${formatVar(this.f1)} < ${formatVar(this.f2)})`;
       }
     	case "ifle": {
-      	return 'if (' + this.f1 + ' <= ' + this.f2;
+        return `if (${formatVar(this.f1)} <= ${formatVar(this.f2)})`;
       }
     	case "andeq": {
-      	return '&& ' + this.f1 + ' === ' + this.f2;
+        return `&& ${formatVar(this.f1)} === ${formatVar(this.f2)}`;
+      }
+    	case "andne": {
+        return `&& ${formatVar(this.f1)} !== ${formatVar(this.f2)}`;
       }
     	case "andgt": {
-      	return '&& ' + this.f1 + ' > ' + this.f2;
+        return `&& ${formatVar(this.f1)} > ${formatVar(this.f2)}`;
+      }
+    	case "andge": {
+        return `&& ${formatVar(this.f1)} >= ${formatVar(this.f2)}`;
       }
     	case "andlt": {
-      	return '&& ' + this.f1 + ' < ' + this.f2;
+        return `&& ${formatVar(this.f1)} < ${formatVar(this.f2)}`;
+      }
+    	case "andle": {
+        return `&& ${formatVar(this.f1)} <= ${formatVar(this.f2)}`;
       }
     	case "oreq": {
-      	return '|| ' + this.f1 + ' === ' + this.f2;
+        return `|| ${formatVar(this.f1)} === ${formatVar(this.f2)}`;
+      }
+    	case "orne": {
+        return `|| ${formatVar(this.f1)} !== ${formatVar(this.f2)}`;
       }
     	case "orgt": {
-      	return '|| ' + this.f1 + ' > ' + this.f2;
+        return `|| ${formatVar(this.f1)} > ${formatVar(this.f2)}`;
+      }
+    	case "orge": {
+        return `|| ${formatVar(this.f1)} >= ${formatVar(this.f2)}`;
       }
     	case "orlt": {
-      	return '|| ' + this.f1 + ' < ' + this.f2;
+        return `|| ${formatVar(this.f1)} < ${formatVar(this.f2)}`;
+      }
+    	case "orle": {
+        return `|| ${formatVar(this.f1)} <= ${formatVar(this.f2)}`;
       }
     	case "exsr": {
-      	return this.f2 + '();';
+      	return this.f2 + '(); /* #' + this.id + ' */';
       }
     	case "begsr": {
-      	return 'function ' + this.f1 + '() {';
+      	return 'function ' + this.f1 + '() { /* #' + this.id + ' */';
+      }
+      case "else": {
+        return '} else { /* #' + this.id + ' */';
       }
       case "endsr": {
-        return '} /* end function */';
+        return '} /* #' + this.id + ' end function */';
       }
       case "enddo": {
-        return '} /* end while */';
+        return '} /* #' + this.id + ' end while */';
       }
       case "endif": {
-        return '} /* end if */';
+        return '} /* #' + this.id + ' end if */';
+      }
+      case "chain":
+      case "reade": {
+        row = 'row->';
+      	return `foreach ($conn->query('SELECT * FROM ${this.f2}') as $${this.f2}) {`;
+      }
+      case "write":
+      case "updat": {
+        row = '';
+        return `${this.f2}.save();`; // hooray for es6 template literals
       }
       default: {
-        return (this.result?this.result + " = ":"") + this.cmd + "('"+this.f1+"','"+this.f2+"','"+this.i1+"','"+this.i2+"');";
+        return (this.result?this.result + " = ":"") + this.cmd + "('"+this.f1+"','"+this.f2+"','"+this.i1+"','"+this.i2+"'); /* #" + this.id + " */";
       }
     }
   }
-  vars(str) {
-    return str.replace('*ZEROS','0').replace('*BLANKS',"''").replace('*IN','_index_').replace('*ON','_on_').replace('*OFF','_off_');
-  }
-  reserved(str) {
-    return str.replace('#','_').replace('*','_');
+  repl(str) {
+    return str.replace('*ZEROS','0').replace('*BLANKS',"''").replace('#','_').replace('*','_').replace('$','_');
   }
 }
 new Vue({
   el: "#app",
   data: {
     input: "",
-    patterns: [
-      {pattern: "(movel)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2 + substr($3,$2.length(),$3.length()-$2.length());"},
-      {pattern: "(move)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2;"},
-      {pattern: "(z-add)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 = $2;"},
-      {pattern: "(add)\\s*(\\S+)\\s+(\\S+)", output: "\t$3 += $2;"},
-      {pattern: "(\\S+)\\s*(ifeq)\\s*(\\S+)", output: "if ($1 == $3"},
-      {pattern: "(\\S+)\\s*(ifgt)\\s*(\\S+)", output: "if ($1 < $3"},
-      {pattern: "(\\S+)\\s*(andeq)\\s*(\\S+)", output: "&& $1 == $3"},
-      {pattern: "(\\S+)\\s*(andlt)\\s*(\\S+)", output: "&& $1 < $3"},
-      {pattern: "(\\S+)\\s*(andgt)\\s*(\\S+)", output: "&& $1 > $3"},
-      {pattern: "(\\S+)\\s*(oreq)\\s*(\\S+)", output: "|| $1 == $3"},
-      {pattern: "(\\S+)\\s*(orlt)\\s*(\\S+)", output: "|| $1 < $3"},
-      {pattern: "(\\S+)\\s*(orgt)\\s*(\\S+)", output: "|| $1 > $3"},
-      {pattern: "(endif)", output: "}"},
-      {pattern: "([*]blanks)", output: "\'\'"},
-      {pattern: "([*]zeros)", output: "0"},
-    ]
+    langIn: "RPG",
+    langOut: "Eloquent PHP",
+    comment: `/*~~~TODO:
+  - prepend $ or $row-> to all variable names, e.g. CURDATE to $CURDATE and ID to $row->ID
+  - pass row objects to functions if applicable, e.g. getitems() to getitems($row) and function getitems() to function getitems($parentrows)
+  - change table aliases to table names, e.g. $addressfields to $customer
+~~~*/`+"\n"
   },
   computed: {
   	output: function(){
       //if(this.input.includes('100      F')){
-      	return this.parserpg(this.input);
+      if(this.input)
+      	return this.comment + this.parserpg(this.input);
       //} else {
       //	return this.rpg2js(this.input);
       //}
@@ -173,6 +213,7 @@ new Vue({
       var self = this;
       let output = [];
       let terminator = '';
+      let row = '';
       let lines = input.split('\n');
       lines.forEach(function(line){
       	if(line.substr(7,7).trim()==='C'){
@@ -184,6 +225,8 @@ new Vue({
             //let js = self.rpg2js(line.substr(25,40));
             let js = new RpgLine(line).js;
             if(js){
+              //if(js.includes('_IN')) js = '/* ' + js + ' */'; 
+              //else 
               if(js.startsWith('if') || js.startsWith('while')) {
               	if(terminator) {
                   js = terminator + js;
@@ -193,13 +236,13 @@ new Vue({
               else if(terminator && !js.startsWith('&&') && !js.startsWith('||')){
                 js = terminator + js;
                 terminator = '';
-              }
+              }//comment out indicators
               output.push(js);            
             }
           }
         }
       });
-      return output.join('');//.join("\n").replace(/\s/g,'');
+      return output.join("\n")//.replace(/\s/g,'');
     },
     rpg2js: function(text){
       this.patterns.forEach(function(item){
@@ -210,6 +253,11 @@ new Vue({
     },
   }
 });
+function formatVar(str) {
+  if(isNaN(Number(str.substr(0,1))) && !str.startsWith("'"))
+  return `$${row}${str}`;
+  else return str;
+}
   </script>
 </body>
 </html>
