@@ -56,6 +56,8 @@ textarea {
     </div>
   <script>
 var row = '';
+var if_terminator = '';
+var each_terminator = '';
 class RpgLine {
   constructor(rawText) {
     this.cmd = rawText.substr(35,5).trim(); // command
@@ -65,13 +67,27 @@ class RpgLine {
     this.i1 = rawText.substr(58,9).trim(); // indicator 1
     this.i2 = rawText.substr(67,20).trim(); // indicator 2
     this.id = rawText.substr(0,7).trim(); // indicator 2
+    this.type = rawText.substr(16,2)==='--'?'header':rawText.substr(14,1)==='*'?'comment':rawText.substr(13,1)==='C'?'code':'other';
+    this.comment = function(){
+    	switch(this.cmd.toLowerCase()) {
+      	case 'endif': return '/* end if */';
+      	case 'enddo': return '/* end while */';
+      	case 'endsr': return '/* end function */';
+      }
+      return;
+    }
   }
   get js() {
     let endline = ';';// `; /* ${this.id} */`;
   	switch (this.cmd.toLowerCase()) {
-      case 'klist':
-      case 'kfld':
-      case 'setll': {
+      case 'chain': // load specific fields into variable
+      case 'klist': // define field array, end after last kfld
+      case 'kfld': // define field in field array
+      case 'setll': // set cursor at first record
+      case 'endsr': // end subroutine
+      case 'enddo': // end while
+      case 'endif': // end if
+      {
       	return;
       }
     	case "movel":
@@ -86,34 +102,45 @@ class RpgLine {
         return `${formatVar(this.result)} = -(${formatVar(this.f2)})${endline}`;
       }
     	case "sub": {
-        if(this.f1) return this.result + ' = ' + this.f1 + ' - ' + this.f2 + '; /* #' + this.id + ' */';
-        return this.result + ' -= ' + this.f2 + '; /* #' + this.id + ' */';
+        if(this.f1){
+        	return `${formatVar(this.result)} = ${formatVar(this.f1)} - ${formatVar(this.f2)}${endline}`;
+        }
+        return `${formatVar(this.result)} -= ${formatVar(this.f2)}${endline}`;
       }
     	case "doueq": {
-      	return 'while (' + this.f1 + ' !== ' + this.f2;
+      	return `while (${formatVar(this.f1)} !== ${formatVar(this.f2)}`;
+        //return `while (${formatVar(this.f1)} !== ${formatVar(this.f2)}`;
       }
     	case "doweq": {
-      	return 'while (' + this.f1 + ' === ' + this.f2;
+        return `while (${formatVar(this.f1)} === ${formatVar(this.f2)}`;
       }
     	case "ifeq": {
-        return `if (${formatVar(this.f1)} === ${formatVar(this.f2)})`;
+      	if (this.f2 === 'true')
+        	return `if (${formatVar(this.f1)}`;
+        else if (this.f2 === 'false')
+        	return `if (!${formatVar(this.f1)}`;
+        return `if (${formatVar(this.f1)} === ${formatVar(this.f2)}`;
       }
     	case "ifne": {
-        return `if (${formatVar(this.f1)} !== ${formatVar(this.f2)})`;
+        return `if (${formatVar(this.f1)} !== ${formatVar(this.f2)}`;
       }
     	case "ifgt": {
-        return `if (${formatVar(this.f1)} > ${formatVar(this.f2)})`;
+        return `if (${formatVar(this.f1)} > ${formatVar(this.f2)}`;
       }
     	case "ifge": {
-        return `if (${formatVar(this.f1)} >= ${formatVar(this.f2)})`;
+        return `if (${formatVar(this.f1)} >= ${formatVar(this.f2)}`;
       }
     	case "iflt": {
-        return `if (${formatVar(this.f1)} < ${formatVar(this.f2)})`;
+        return `if (${formatVar(this.f1)} < ${formatVar(this.f2)}`;
       }
     	case "ifle": {
-        return `if (${formatVar(this.f1)} <= ${formatVar(this.f2)})`;
+        return `if (${formatVar(this.f1)} <= ${formatVar(this.f2)}`;
       }
     	case "andeq": {
+      	if (this.f2 === 'true')
+        	return `&& ${formatVar(this.f1)}`;
+        else if (this.f2 === 'false')
+        	return `&& !${formatVar(this.f1)}`;
         return `&& ${formatVar(this.f1)} === ${formatVar(this.f2)}`;
       }
     	case "andne": {
@@ -132,6 +159,10 @@ class RpgLine {
         return `&& ${formatVar(this.f1)} <= ${formatVar(this.f2)}`;
       }
     	case "oreq": {
+      	if (this.f2 === 'true')
+        	return `|| ${formatVar(this.f1)}`;
+        else if (this.f2 === 'false')
+        	return `|| !${formatVar(this.f1)}`;
         return `|| ${formatVar(this.f1)} === ${formatVar(this.f2)}`;
       }
     	case "orne": {
@@ -150,40 +181,41 @@ class RpgLine {
         return `|| ${formatVar(this.f1)} <= ${formatVar(this.f2)}`;
       }
     	case "exsr": {
-      	return this.f2 + '(); /* #' + this.id + ' */';
+        return `$${this.f2}()${endline}`;
       }
     	case "begsr": {
-      	return 'function ' + this.f1 + '() { /* #' + this.id + ' */';
+        return `function ${this.f1}() {`;
       }
       case "else": {
-        return '} else { /* #' + this.id + ' */';
+        return `} else {`;
       }
-      case "endsr": {
-        return '} /* #' + this.id + ' end function */';
-      }
-      case "enddo": {
-        return '} /* #' + this.id + ' end while */';
-      }
-      case "endif": {
-        return '} /* #' + this.id + ' end if */';
-      }
-      case "chain":
+//      case "endsr": {
+//        return `} /* end function */`;
+//      }
+//      case "enddo": {
+//        return `} /* end while */`;
+//      }
+//      case "endif": {
+//        return `} /* end if */`;
+//      }
       case "reade": {
-        row = 'row->';
-      	return `foreach ($conn->query('SELECT * FROM ${this.f2}') as $${this.f2}) {`;
+        row = `row->`;
+        return `$table${this.i1} = $conn->query('SELECT * FROM ${this.f2}');`;
+      	//return `foreach ($conn->query('SELECT * FROM ${this.f2}') as $${this.f2}) {`;
       }
-      case "write":
-      case "updat": {
+      case "write": // table insert
+      case "updat": // table update
+      {
         row = '';
-        return `${this.f2}.save();`; // hooray for es6 template literals
+        return `${formatVar(this.f2)}.save();`; // hooray for es6 template literals
       }
       default: {
-        return (this.result?this.result + " = ":"") + this.cmd + "('"+this.f1+"','"+this.f2+"','"+this.i1+"','"+this.i2+"'); /* #" + this.id + " */";
+        return (this.result?formatVar(this.result) + " = ":"") + this.cmd + "('"+this.f1+"','"+this.f2+"','"+this.i1+"','"+this.i2+"')"+endline;
       }
     }
   }
   repl(str) {
-    return str.replace('*ZEROS','0').replace('*BLANKS',"''").replace('#','_').replace('*','_').replace('$','_');
+    return str.replace('*ZEROS','0').replace('*BLANKS',"''").replace('*.IN','$table').replace('#','_').replace('*','_').replace('$','_');
   }
 }
 new Vue({
@@ -202,47 +234,124 @@ new Vue({
   	output: function(){
       //if(this.input.includes('100      F')){
       if(this.input)
-      	return this.comment + this.parserpg(this.input);
+      	return this.comment + parse(this.input);
+      	//return this.comment + this.parserpg(this.input);
       //} else {
       //	return this.rpg2js(this.input);
       //}
     }
   },
   methods: {
-  	parserpg: function(input){
-      var self = this;
+  	convert: function(input) {
       let output = [];
-      let terminator = '';
-      let row = '';
       let lines = input.split('\n');
-      lines.forEach(function(line){
-      	if(line.substr(7,7).trim()==='C'){
+    	lines.forEach(function(line){
           let fields = [];
           if(line.substr(14,1)==='*'){//comment
-            if(line.substr(16,1)!=="-" && line.substr(15,10).trim().length>0){ output.push('/* '+line.substr(15,20).trim()+' */');
+            if(line.substr(16,1)!=="-" && line.substr(15,10).trim().length>0){ output.push('/* '+line.substr(15,30).trim()+' */');
             }
           } else {
             //let js = self.rpg2js(line.substr(25,40));
             let js = new RpgLine(line).js;
             if(js){
-              //if(js.includes('_IN')) js = '/* ' + js + ' */'; 
-              //else 
+              //if(js.includes('_IN')) js = '/* ' + js + ' */'; else
               if(js.startsWith('if') || js.startsWith('while')) {
-              	if(terminator) {
-                  js = terminator + js;
+              	if(if_terminator) {
+                  js = if_terminator + js;
                 }
-              	terminator = ') {';
+              	if_terminator = ") {\n";
               }
-              else if(terminator && !js.startsWith('&&') && !js.startsWith('||')){
-                js = terminator + js;
-                terminator = '';
-              }//comment out indicators
+              else if(if_terminator && !js.startsWith('&&') && !js.startsWith('||')){
+                js = if_terminator + js;
+                if_terminator = '';
+              }
+              else if(js.startsWith('foreach') && !js.startsWith('}')) {
+              	if(each_terminator) {
+                  js = each_terminator + js;
+                }
+              	each_terminator = "} /* end foreach */\n";
+              }
+              else if(each_terminator && (js.startsWith('foreach') || js.startsWith('function'))){
+                js = each_terminator + js;
+                each_terminator = '';
+              }
+              output.push(js);            
+            }
+          }
+      });
+      //return output.join("\n") + each_terminator//.replace(/\s/g,'');
+      return 'asdf';
+    },
+  	parseit: function(input) {
+    	let output = [];
+    	let txtblock = this.comment;
+      let lines = input.split('\n');
+      lines.forEach(function (line) {
+        let rpgLine = new RpgLine(line);
+        if(rpgLine.type === 'code' && !rpgLine.cmd.startsWith('K') && !rpgLine.cmd.startsWith('SET')){
+        	switch(rpgLine.cmd.substr(0,2)) {
+          	case 'EN':
+            	output.push('} ' + rpgLine.comment);
+              return output.join("\n");
+          	case 'IF':
+            case 'DO':
+            case 'BE':
+            {
+            	output.push(this.parse(rpgLine.js));
+            }
+          }
+      		output.push(rpgLine.js);
+          }
+      });
+      return output.join("\n");
+    	//while(txtblock) {
+      //	txtblock = lines.forEach(line => this.convert(line));
+      //}
+      //let lines = input.split('\n');
+    	//let str = lines.forEach(line => this.convert(line));
+      //return str;
+    },
+  	parserpg: function(input){
+      var self = this;
+      let output = [];
+      let lines = input.split('\n');
+      lines.forEach(function(line){
+      	if(line.substr(7,7).trim()==='C'){
+          let fields = [];
+          if(line.substr(14,1)==='*'){//comment
+            if(line.substr(16,1)!=="-" && line.substr(15,10).trim().length>0){ output.push('/* '+line.substr(15,30).trim()+' */');
+            }
+          } else {
+            //let js = self.rpg2js(line.substr(25,40));
+            let js = new RpgLine(line).js;
+            if(js){
+              //if(js.includes('_IN')) js = '/* ' + js + ' */'; else
+              if(js.startsWith('if') || js.startsWith('while')) {
+              	if(if_terminator) {
+                  js = if_terminator + js;
+                }
+              	if_terminator = ") {\n";
+              }
+              else if(if_terminator && !js.startsWith('&&') && !js.startsWith('||')){
+                js = if_terminator + js;
+                if_terminator = '';
+              }
+              else if(js.startsWith('foreach') && !js.startsWith('}')) {
+              	if(each_terminator) {
+                  js = each_terminator + js;
+                }
+              	each_terminator = "} /* end foreach */\n";
+              }
+              else if(each_terminator && (js.startsWith('foreach') || js.startsWith('function'))){
+                js = each_terminator + js;
+                each_terminator = '';
+              }
               output.push(js);            
             }
           }
         }
       });
-      return output.join("\n")//.replace(/\s/g,'');
+      return output.join("\n") + each_terminator//.replace(/\s/g,'');
     },
     rpg2js: function(text){
       this.patterns.forEach(function(item){
@@ -254,9 +363,35 @@ new Vue({
   }
 });
 function formatVar(str) {
-  if(isNaN(Number(str.substr(0,1))) && !str.startsWith("'"))
-  return `$${row}${str}`;
-  else return str;
+  if(str === 'false' || str === 'true' || str.startsWith("'") || !isNaN(Number(str.substr(0,1))))
+  	return str; // number, string or keyword
+  else if(!str.startsWith('_'))
+  	return `$${str}`; // variable name
+  else
+  	return `$${row}${str}`; // assume field
+}
+function parse(input) {
+  let output = [];
+  let txtblock = this.comment;
+  let lines = input.split('\n');
+  lines.forEach(function (line) {
+    let rpgLine = new RpgLine(line);
+    if(rpgLine.type === 'code' && !rpgLine.cmd.startsWith('K') && !rpgLine.cmd.startsWith('SET')){
+      switch(rpgLine.cmd.substr(0,2)) {
+        case 'EN':
+          output.push('} ' + rpgLine.comment);
+          return output.join("\n");
+        case 'IF':
+        case 'DO':
+        case 'BE':
+          {
+            output.push(parse(rpgLine.js));
+          }
+      }
+      output.push(rpgLine.js);
+    }
+  });
+  return output.join("\n");
 }
   </script>
 </body>
