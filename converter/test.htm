@@ -1,0 +1,22 @@
+<html>
+
+<head>
+  <link rel="stylesheet" type="text/css" href="test.css" media="screen">
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <div class="col">
+      <h6>convert <strong>{{langIn}}</strong></h6>
+      <textarea placeholder="paste some code here" v-model="input"></textarea>
+    </div>
+    <div class="col">
+      <h6>to <strong>{{langOut}}</strong> <small><a href="#">...edit dictionary</a></small></h6>
+      <textarea v-model="output"></textarea>
+    </div>
+  </div>
+  <script src="test.js"></script>
+</body>
+
+</html>
